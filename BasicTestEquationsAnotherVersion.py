@@ -48,6 +48,7 @@ while True:
     print("6. Average Simpson index by county")
     print("7. Exit")
     print("8. View schools in a district")
+    print("9. Search for a school by name")
 
     choice = input("\nEnter your choice (1-6): ").strip()
 
@@ -152,5 +153,24 @@ while True:
         district_data = df[df["District"] == selected_district]
         district_data = filter_schools(district_data)
         print(district_data[["School Name", "District", "total", "simpson", "entropy"]].head(30))
+    elif choice == "9":
+        school_input = input("Enter the exact or partial school name: ").strip().lower()
+        matches = df["School Name"].loc[df["School Name"].str.lower().str.contains(school_input, na=False)].unique()
+        
+        if len(matches) == 0:
+            print(f"No schools match '{school_input}'.")
+            continue
+        elif len(matches) > 1:
+            print("Matching schools found:")
+            for i, name in enumerate(matches):
+                print(f"{i+1}. {name}")
+            selection = int(input(f"Enter the number of the school to view (1-{len(matches)}): "))
+            selected_school = matches[selection-1]
+        else:
+            selected_school = matches[0]
+
+        # Display data for the selected school
+        school_data = df[df["School Name"] == selected_school]
+        print(school_data[["School Name", "District", "County", "total", "simpson", "entropy"]])
     else:
         print("Invalid choice. Please select 1-6.")
