@@ -1,131 +1,156 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 
-# Load data
-df = pd.read_excel('ORR ALL Grids Oct 1 2024 SY2025_Format.xlsx')
-dp = pd.read_excel('District Demographic Data.xlsx')
+# Load dataset
+df = pd.read_excel("School Totals by Ethnicity and GenderSY2024 1.xlsx")
 
 # Clean column names
 df.columns = df.columns.str.strip().str.replace(r"\s+", " ", regex=True)
-dp.columns = dp.columns.str.strip().str.replace(r"\s+", " ", regex=True)
 
-# Race mapping for Oklahoma file
-race_map = {
-    "Hispanic": ["His M", "His F"],
-    "American Indian": ["AmInd M", "AmInd F"],
-    "Asian": ["Asian M", "Asian F"],
-    "Black": ["Black M", "Black F"],
-    "Pacific Islander": ["Pac Is M", "Pac Is F"],
-    "White": ["White M", "White F"],
-    "Multi": ["Multi M", "Multi F"]
-}
+# Compute racial totals
+df["Hispanic"] = df["His M"] + df["His F"]
+df["American Indian"] = df["AmInd M"] + df["AmInd F"]
+df["Asian"] = df["Asian M"] + df["Asian F"]
+df["Black"] = df["Black M"] + df["Black F"]
+df["Pacific Islander"] = df["Pac Is M"] + df["Pac Is F"]
+df["White"] = df["White M"] + df["White F"]
+df["Multi"] = df["Multi M"] + df["Multi F"]
 
-for race, cols in race_map.items():
-    df[race] = df[cols].sum(axis=1)
+# Compute total enrollment
+race_cols = ["Hispanic", "American Indian", "Asian", "Black", "Pacific Islander", "White", "Multi"]
+df["total"] = df[race_cols].sum(axis=1)
 
-# Oklahoma totals + proportions
-df["total"] = df[list(race_map.keys())].sum(axis=1)
-for col in race_map.keys():
+# Compute proportions
+for col in race_cols:
     df[f"p_{col}"] = df[col] / df["total"]
 
-p_cols = [f"p_{col}" for col in race_map.keys()]
+# Diversity metrics
+p_cols = [f"p_{col}" for col in race_cols]
 df["simpson"] = 1 - (df[p_cols] ** 2).sum(axis=1)
 df["entropy"] = - (df[p_cols] * np.log(df[p_cols] + 1e-10)).sum(axis=1)
 
-# Arkansas data
-dp_keep = [
-    "YEAR", "COUNTY_DISTRICT_CODE", "DISTRICT_NAME",
-    "ENROLLMENT_GRADES_K_12",
-    "ENROLLMENT_ASIAN", "ENROLLMENT_BLACK", "ENROLLMENT_HISPANIC",
-    "ENROLLMENT_INDIAN", "ENROLLMENT_MULTIRACIAL",
-    "ENROLLMENT_PACIFIC_ISLANDER", "ENROLLMENT_WHITE"
-]
-dp_clean = dp[dp_keep].copy()
+# Lowercase county column for robust searching
+df["County_lower"] = df["County"].str.lower().str.strip()
+df["District_lower"] = df["District"].str.lower().str.strip()
 
-dp_clean = dp_clean.rename(columns={
-    "ENROLLMENT_HISPANIC": "Hispanic",
-    "ENROLLMENT_INDIAN": "American Indian",
-    "ENROLLMENT_ASIAN": "Asian",
-    "ENROLLMENT_BLACK": "Black",
-    "ENROLLMENT_PACIFIC_ISLANDER": "Pacific Islander",
-    "ENROLLMENT_WHITE": "White",
-    "ENROLLMENT_MULTIRACIAL": "Multi",
-    "ENROLLMENT_GRADES_K_12": "total"
-})
-
-# Keep only 2024 rows
-arkansas_2024 = dp_clean[dp_clean["YEAR"] == 2024].copy()
-# Now add proportions + diversity metrics
-num_cols = ["Hispanic","American Indian","Asian","Black",
-            "Pacific Islander","White","Multi","total"]
-
-# Turn strings like '*' into NaN, then fill with 0, then cast to float
-arkansas_2024[num_cols] = arkansas_2024[num_cols].apply(
-    pd.to_numeric, errors="coerce"
-).fillna(0).astype(float)
-
-# Now add proportions + diversity metrics
-for col in ["Hispanic","American Indian","Asian","Black","Pacific Islander","White","Multi"]:
-    arkansas_2024[f"p_{col}"] = arkansas_2024[col] / arkansas_2024["total"]
-
-p_cols = [f"p_{col}" for col in race_map.keys()]
-arkansas_2024["simpson"] = 1 - (arkansas_2024[p_cols] ** 2).sum(axis=1)
-arkansas_2024["entropy"] = - (arkansas_2024[p_cols] * np.log(arkansas_2024[p_cols] + 1e-10)).sum(axis=1)
+# Helper function to filter schools (remove "Epic" and minimum total)
+def filter_schools(df_in, min_total=70):
+    return df_in[~df_in["School Name"].str.contains("Epic", case=False) & (df_in["total"] > min_total)]
 
 # Menu loop
 while True:
-    print("\nChoose State:")
-    print("1. Oklahoma")
-    print("2. Arkansas 2024")
-    print("3. Exit")
+    print("\nOklahoma School Diversity Menu (by County)")
+    print("1. View schools in a county")
+    print("2. Sort schools by total enrollment (largest first)")
+    print("3. Sort schools by Simpson diversity index (highest first)")
+    print("4. Sort schools by Simpson diversity index (lowest first)")
+    print("5. Average Simpson index by district")
+    print("6. Average Simpson index by county")
+    print("7. Exit")
+    print("8. View schools in a district")
 
-    schoice = input("\nEnter your choice (1-3): ").strip()
-
-    if schoice == "1":  # Oklahoma, use df
-        data = df
-        name_col = "District"
-        id_cols = ["School Name", "District"]
-    elif schoice == "2":  # Arkansas 2024 only
-        data = arkansas_2024
-        name_col = "DISTRICT_NAME"
-        id_cols = ["DISTRICT_NAME", "YEAR"]
-    elif schoice == "3":
-        print("Exiting program. Goodbye!")
-        break
-    else:
-        print("Invalid state choice. Please select 1-3.")
-        continue
-
-    # Shared menu
-    print("\nMenu Options:")
-    print("1. View data for a district")
-    print("2. Sort by total enrollment (largest first)")
-    print("3. Sort by Simpson diversity index (highest first)")
-    print("4. Sort by Simpson diversity index (lowest first)")
-    print("5. Back to state menu")
-
-    choice = input("\nEnter your choice (1-4): ").strip()
+    choice = input("\nEnter your choice (1-6): ").strip()
 
     if choice == "1":
-        district_name = input("Enter district name: ").strip()
-        district_data = data[data[name_col].str.contains(district_name, case=False, na=False)]
-        if district_data.empty:
-            print(f"No results found for '{district_name}'.")
+        county_input = input("Enter county name (or part of it): ").strip().lower()
+        matches = df["County"].loc[df["County_lower"].str.contains(county_input, na=False)].unique()
+        if len(matches) == 0:
+            print(f"No counties match '{county_input}'.")
+            continue
+        elif len(matches) > 1:
+            print("Matching counties found:")
+            for i, name in enumerate(matches):
+                print(f"{i+1}. {name}")
+            selection = int(input(f"Enter the number of the county to view (1-{len(matches)}): "))
+            selected_county = matches[selection-1]
         else:
-            print(district_data[id_cols + ["total", "simpson", "entropy"]])
+            selected_county = matches[0]
+
+        county_data = df[df["County"] == selected_county]
+        county_data = filter_schools(county_data)
+        print(county_data[["School Name", "County", "total", "simpson", "entropy"]].head(30))
 
     elif choice == "2":
-        print("\nTop by Enrollment:")
-        print(data[id_cols + ["total"]].sort_values("total", ascending=False).head(10))
+        df_filtered = filter_schools(df)
+        print("\nTop Schools by Enrollment:")
+        print(df_filtered[["School Name", "County", "total"]].sort_values("total", ascending=False).head(20))
 
     elif choice == "3":
-        print("\nTop by Simpson Diversity:")
-        print(data[id_cols + ["simpson"]].sort_values("simpson", ascending=False).head(10))
+        df_filtered = filter_schools(df)
+        print("\nTop Schools by Simpson Diversity:")
+        print(df_filtered[["School Name", "County", "simpson"]].sort_values("simpson", ascending=False).head(40))
+
     elif choice == "4":
-        print("\nBottom by Simpson Diversity:")
-        print(data[id_cols + ["simpson"]].sort_values("simpson", ascending=False).tail(10))
+        df_filtered = filter_schools(df, min_total=10)
+        print("\nWorst Schools by Simpson Diversity:")
+        print(df_filtered[["School Name", "County", "simpson"]].sort_values("simpson", ascending=True).head(40))
+
+    elif choice == "7":
+        print("Exiting program. Goodbye!")
+        break
+
+    elif choice == "6":
+        county_input = input("Enter county name (or part of it): ").strip().lower()
+        matches = df["County"].loc[df["County_lower"].str.contains(county_input, na=False)].unique()
+        if len(matches) == 0:
+            print(f"No counties match '{county_input}'.")
+            continue
+        elif len(matches) > 1:
+            print("Matching counties found:")
+            for i, name in enumerate(matches):
+                print(f"{i+1}. {name}")
+            selection = int(input(f"Enter the number of the county to analyze (1-{len(matches)}): "))
+            selected_county = matches[selection-1]
+        else:
+            selected_county = matches[0]
+
+        county_data = df[df["County"] == selected_county]
+        county_data = filter_schools(county_data)
+        avg_simpson = county_data["simpson"].mean()
+        print(f"Average Simpson Diversity Index for '{selected_county}': {avg_simpson:.4f}")
+
     elif choice == "5":
-        continue
+        district_input = input("Enter district name (or part of it): ").strip().lower()
+        matches = df["District"].loc[df["District_lower"].str.contains(district_input, na=False)].unique()
+
+        if len(matches) == 0:
+            print(f"No districts match '{district_input}'.")
+        else:
+            if len(matches) > 1:
+                print("Matching districts found:")
+                for i, name in enumerate(matches):
+                    print(f"{i+1}. {name}")
+                selection = int(input(f"Enter the number of the district to analyze (1-{len(matches)}): "))
+                selected_district = matches[selection-1]
+            else:
+                selected_district = matches[0]
+
+            district_data = df[df["District"] == selected_district]
+            district_data = district_data[~district_data["School Name"].str.contains("Epic", case=False)]
+            district_data = district_data[district_data["total"] > 70]
+
+            if district_data.empty:
+                print(f"No valid schools in district '{selected_district}' after filtering.")
+            else:
+                avg_simpson = district_data["simpson"].mean()
+                print(f"Average Simpson Diversity Index for '{selected_district}': {avg_simpson:.4f}")
+    if choice == "8":
+        district_input = input("Enter district name (or part of it): ").strip().lower()
+        matchesD = df["District"].loc[df["District_lower"].str.contains(district_input, na=False)].unique()
+        if len(matchesD) == 0:
+            print(f"No districts match '{district_input}'.")
+            continue
+        elif len(matchesD) > 1:
+            print("Matching districts found:")
+            for i, name in enumerate(matchesD):
+                print(f"{i+1}. {name}")
+            selection = int(input(f"Enter the number of the districts to view (1-{len(matchesD)}): "))
+            selected_district = matchesD[selection-1]
+        else:
+            selected_district = matchesD[0]
+
+        district_data = df[df["District"] == selected_district]
+        district_data = filter_schools(district_data)
+        print(district_data[["School Name", "District", "total", "simpson", "entropy"]].head(30))
     else:
-        print("Invalid choice. Please select 1-4.")
+        print("Invalid choice. Please select 1-6.")
