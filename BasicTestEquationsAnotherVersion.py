@@ -68,7 +68,7 @@ while True:
 
         county_data = df[df["County"] == selected_county]
         county_data = filter_schools(county_data)
-        print(county_data[["School Name", "County", "total", "simpson", "entropy"]].head(30))
+        print(county_data[["School Name", "County", "total", "simpson", "entropy"]].head(75))
 
     elif choice == "2":
         df_filtered = filter_schools(df)
