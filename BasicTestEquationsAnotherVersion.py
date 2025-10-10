@@ -215,20 +215,24 @@ while True:
         except Exception as e:
             print(f"Error exporting file: {e}")
     elif choice == "11":  # New menu option for exporting all data
-        file_name = input("Enter the filename to save (without extension): ").strip()
-        file_type = input("Enter file type: CSV or Excel (csv/xlsx): ").strip().lower()
+            # You can change this list to whatever districts you want exported
+        target_districts = ["Choctaw-Nicoma Park","Jones","Moore","Millwood","Yukon","Putnam City",
+                            "Deer Creek","Western Heights","Oklahoma City","Luther","McLoud","Crooked Oak",
+                            "Banner","Little Axe", "Norman", "Mid-Del City", "Robin Hill", "Crutcho",
+                            "Oakdale", "Piedmont", "Mustang", "Edmond", "Bethany"]
 
-        try:
-            if file_type == "csv":
-                grouped.to_csv(f"{file_name}.csv", index=False)
-                print(f"All data exported to {file_name}.csv successfully!")
-            elif file_type in ["xlsx", "excel"]:
-                grouped.to_excel(f"{file_name}.xlsx", index=False)
-                print(f"All data exported to {file_name}.xlsx successfully!")
-            else:
-                print("Unsupported file type. Please enter 'csv' or 'xlsx'.")
-        except Exception as e:
-            print(f"Error exporting file: {e}")
+        # Filter to just those districts (case-insensitive)
+        df_filtered = df[df["District"].str.lower().isin([d.lower() for d in target_districts])]
+
+        if df_filtered.empty:
+            print("No matching districts found in dataset.")
+        else:
+            file_name = input("Enter the filename to save (without extension): ").strip()
+            try:
+                df_filtered.to_excel(f"{file_name}.xlsx", index=False)
+                print(f"Exported {len(df_filtered)} rows for {len(target_districts)} district(s) to {file_name}.xlsx successfully!")
+            except Exception as e:
+                print(f"Error exporting file: {e}")
 
     else:
         print("Invalid choice. Please select 1-10.")
