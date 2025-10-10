@@ -222,7 +222,7 @@ while True:
                             "Oakdale", "Piedmont", "Mustang", "Edmond", "Bethany"]
 
         # Filter to just those districts (case-insensitive)
-        df_filtered = df[df["District"].str.lower().isin([d.lower() for d in target_districts])]
+        df_filtered = grouped[grouped["District"].str.lower().isin([d.lower() for d in target_districts])]
 
         if df_filtered.empty:
             print("No matching districts found in dataset.")
